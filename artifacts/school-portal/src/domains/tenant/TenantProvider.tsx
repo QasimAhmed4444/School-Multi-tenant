@@ -31,16 +31,20 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [isPlatformAdmin, setIsPlatformAdmin] = React.useState(false);
   const [memberships, setMemberships] = React.useState<Membership[]>([]);
   const [selectedMembershipId, setSelectedMembershipId] = React.useState<string | null>(null);
+  const [resolvedUserId, setResolvedUserId] = React.useState<string | null>(null);
 
   const loadTenant = React.useCallback(async () => {
     if (!user) {
       setIsPlatformAdmin(false);
       setMemberships([]);
       setSelectedMembershipId(null);
+      setResolvedUserId(null);
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
+    const isInitialLoadForUser = resolvedUserId !== user.id;
+    setLoading(isInitialLoadForUser);
 
     const [{ data: platformAdmin }, { data: membershipRows, error }] = await Promise.all([
       supabase.from("platform_admins").select("profile_id,status").eq("profile_id", user.id).eq("status", "active").maybeSingle(),
@@ -67,16 +71,26 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       setMemberships([]);
     } else {
       const normalized = (membershipRows ?? []) as unknown as Membership[];
+      const preferredCode = window.localStorage.getItem("preferredTenantCode")?.trim().toUpperCase();
       setMemberships(normalized);
       setSelectedMembershipId((current) => {
         if (current && normalized.some((membership) => membership.id === current)) return current;
+        if (preferredCode) {
+          const preferredMembership = normalized.find(
+            (membership) =>
+              membership.organization?.org_code?.toUpperCase() === preferredCode ||
+              membership.school?.school_code?.toUpperCase() === preferredCode,
+          );
+          if (preferredMembership) return preferredMembership.id;
+        }
         return normalized[0]?.id ?? null;
       });
     }
 
     setIsPlatformAdmin(Boolean(platformAdmin));
+    setResolvedUserId(user.id);
     setLoading(false);
-  }, [user]);
+  }, [resolvedUserId, user]);
 
   React.useEffect(() => {
     loadTenant();

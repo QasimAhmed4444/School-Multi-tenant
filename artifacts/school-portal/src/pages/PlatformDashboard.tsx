@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/domains/auth/AuthProvider";
 import { supabase } from "@/lib/supabase/client";
 
@@ -68,7 +69,7 @@ export function PlatformDashboard() {
     maxAdminUsers: "1",
   });
   const [schoolForm, setSchoolForm] = React.useState({ schoolName: "", schoolCode: "", campusName: "Main Campus", campusCode: "MAIN" });
-  const [adminForm, setAdminForm] = React.useState({ schoolId: "", email: "" });
+  const [adminForm, setAdminForm] = React.useState({ schoolId: "", fullName: "", email: "", password: "" });
 
   const selectedOrg = organizations.find((org) => org.id === selectedOrgId) ?? null;
   const usedAdminSeats = new Set(admins.map((admin) => admin.profileId)).size;
@@ -216,7 +217,7 @@ export function PlatformDashboard() {
       });
 
       setSelectedOrgId(organization.id);
-      setAdminForm({ schoolId: school.id, email: "" });
+      setAdminForm({ schoolId: school.id, fullName: "", email: "", password: "" });
       setSuccess(`${organization.name} created. Now assign the first school admin below.`);
       setOrgForm((current) => ({ ...current, organizationName: "", orgCode: "", schoolName: "", schoolCode: "", campusName: "Main Campus", campusCode: "MAIN" }));
       await loadDashboard();
@@ -278,22 +279,29 @@ export function PlatformDashboard() {
   const assignAdmin = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedOrg) return;
+    if (adminForm.password.length < 8) {
+      setError("Admin password must be at least 8 characters.");
+      return;
+    }
     setBusy("admin");
     setError(null);
     setSuccess(null);
     try {
-      const { error: rpcError } = await supabase.rpc("assign_school_admin_by_email", {
+      const { error: rpcError } = await supabase.rpc("create_school_admin_with_password", {
         org_id: selectedOrg.id,
         sch_id: adminForm.schoolId,
         admin_email: adminForm.email.trim().toLowerCase(),
+        admin_full_name: adminForm.fullName.trim(),
+        admin_password: adminForm.password,
       });
       if (rpcError) throw rpcError;
-      setSuccess(`${adminForm.email.trim()} is now a school admin.`);
-      setAdminForm((current) => ({ ...current, email: "" }));
+      const schoolName = schools.find((school) => school.id === adminForm.schoolId)?.name ?? "selected school";
+      setSuccess(`${adminForm.email.trim()} can now sign in to ${schoolName} with the password you set.`);
+      setAdminForm((current) => ({ ...current, fullName: "", email: "", password: "" }));
       await Promise.all([loadDashboard(), loadOrgDetails(selectedOrg.id)]);
     } catch (nextError) {
       const message = nextError instanceof Error ? nextError.message : "Unable to assign school admin";
-      setError(message.includes("Profile not found") ? "That email must sign up once before you can assign it. Invite automation is the next backend step." : message);
+      setError(message);
     } finally {
       setBusy(null);
     }
@@ -380,49 +388,69 @@ export function PlatformDashboard() {
                 <div className="rounded-md border bg-muted/30 p-4"><div className="text-xs font-medium uppercase text-muted-foreground">Region</div><div className="mt-2 text-2xl font-bold">{selectedOrg.country_code ?? "Global"}</div><div className="text-xs text-muted-foreground">{selectedOrg.default_currency ?? "currency"} / {selectedOrg.default_timezone ?? "timezone"}</div></div>
               </div>
 
-              <div className="grid gap-6 xl:grid-cols-2">
-                <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><School className="h-5 w-5 text-emerald-600" />Add School</CardTitle><CardDescription>Create another school if the plan allows it.</CardDescription></CardHeader>
-                  <CardContent>
-                    <form onSubmit={createSchool} className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
+              <Tabs defaultValue="admins" className="space-y-4">
+                <TabsList className="h-auto flex-wrap justify-start">
+                  <TabsTrigger value="admins" className="gap-2"><UserPlus className="h-4 w-4" />Create Admin</TabsTrigger>
+                  <TabsTrigger value="schools" className="gap-2"><School className="h-4 w-4" />Add School</TabsTrigger>
+                  <TabsTrigger value="directory" className="gap-2"><Building2 className="h-4 w-4" />Directory</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="admins">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg"><UserPlus className="h-5 w-5 text-blue-600" />Create School Admin Login</CardTitle>
+                      <CardDescription>Create a confirmed test login, set the password now, and assign the admin to exactly one school.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <form onSubmit={assignAdmin} className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+                        <div className="space-y-2">
+                          <Label htmlFor="admin-school">School</Label>
+                          <select id="admin-school" value={adminForm.schoolId} onChange={(event) => updateAdminForm("schoolId", event.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
+                            {schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
+                          </select>
+                        </div>
+                        <Field id="admin-name" label="Full name" value={adminForm.fullName} onChange={(value) => updateAdminForm("fullName", value)} placeholder="School Admin" />
+                        <Field id="admin-email" label="Email" type="email" value={adminForm.email} onChange={(value) => updateAdminForm("email", value)} placeholder="admin@school.com" />
+                        <div className="space-y-2 lg:col-span-2">
+                          <Label htmlFor="admin-password">Temporary password</Label>
+                          <Input id="admin-password" type="password" value={adminForm.password} onChange={(event) => updateAdminForm("password", event.target.value)} required minLength={8} placeholder="Minimum 8 characters" />
+                        </div>
+                        <Button type="submit" disabled={busy === "admin" || schools.length === 0 || Boolean(entitlement && usedAdminSeats >= entitlement.max_admin_users)}>
+                          <ShieldCheck className="mr-2 h-4 w-4" />{busy === "admin" ? "Creating..." : "Create admin"}
+                        </Button>
+                      </form>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="schools">
+                  <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><School className="h-5 w-5 text-emerald-600" />Add School</CardTitle><CardDescription>Create another school if the plan allows it.</CardDescription></CardHeader>
+                    <CardContent>
+                      <form onSubmit={createSchool} className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
                         <Field id="new-school" label="School name" value={schoolForm.schoolName} onChange={(value) => updateSchoolForm("schoolName", value)} placeholder="Second Branch School" />
                         <Field id="new-school-code" label="School code" value={schoolForm.schoolCode} onChange={(value) => updateSchoolForm("schoolCode", value)} placeholder="SBS" />
                         <Field id="new-campus" label="Campus" value={schoolForm.campusName} onChange={(value) => updateSchoolForm("campusName", value)} />
                         <Field id="new-campus-code" label="Campus code" value={schoolForm.campusCode} onChange={(value) => updateSchoolForm("campusCode", value)} />
-                      </div>
-                      <Button type="submit" disabled={busy === "school" || Boolean(entitlement && schools.length >= entitlement.max_schools)}><Plus className="mr-2 h-4 w-4" />{busy === "school" ? "Creating..." : "Create school"}</Button>
-                    </form>
-                  </CardContent>
-                </Card>
+                        <Button type="submit" disabled={busy === "school" || Boolean(entitlement && schools.length >= entitlement.max_schools)}><Plus className="mr-2 h-4 w-4" />{busy === "school" ? "Creating..." : "Create school"}</Button>
+                      </form>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
-                <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><UserPlus className="h-5 w-5 text-blue-600" />Assign School Admin</CardTitle><CardDescription>Assign an existing signed-up user to one selected school.</CardDescription></CardHeader>
-                  <CardContent>
-                    <form onSubmit={assignAdmin} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="admin-school">School</Label>
-                        <select id="admin-school" value={adminForm.schoolId} onChange={(event) => updateAdminForm("schoolId", event.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
-                          {schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
-                        </select>
-                      </div>
-                      <Field id="admin-email" label="Admin email" type="email" value={adminForm.email} onChange={(value) => updateAdminForm("email", value)} placeholder="admin@school.com" />
-                      <Button type="submit" disabled={busy === "admin" || schools.length === 0 || Boolean(entitlement && usedAdminSeats >= entitlement.max_admin_users)}><ShieldCheck className="mr-2 h-4 w-4" />{busy === "admin" ? "Assigning..." : "Assign admin"}</Button>
-                    </form>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="grid gap-6 xl:grid-cols-2">
-                <Card>
-                  <CardHeader><CardTitle className="text-lg">Schools</CardTitle><CardDescription>Schools under this organization.</CardDescription></CardHeader>
-                  <CardContent className="space-y-3">{schools.length === 0 ? <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">No schools found.</div> : schools.map((school) => <div key={school.id} className="flex items-center justify-between rounded-md border p-3"><div><div className="font-medium">{school.name}</div><div className="text-xs text-muted-foreground">{school.school_code} / {school.currency ?? "currency"} / {school.timezone ?? "timezone"}</div></div><div className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">{school.status}</div></div>)}</CardContent>
-                </Card>
-                <Card>
-                  <CardHeader><CardTitle className="text-lg">School Admins</CardTitle><CardDescription>Admin users assigned through memberships and RBAC.</CardDescription></CardHeader>
-                  <CardContent className="space-y-3">{admins.length === 0 ? <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">No school admins assigned yet.</div> : admins.map((admin) => <div key={admin.id} className="rounded-md border p-3"><div className="flex items-center justify-between gap-3"><div><div className="font-medium">{admin.name}</div><div className="text-xs text-muted-foreground">{admin.email}</div></div><div className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{admin.school}</div></div><div className="mt-2 text-xs text-muted-foreground">{admin.roles.join(", ")}</div></div>)}</CardContent>
-                </Card>
-              </div>
+                <TabsContent value="directory">
+                  <div className="grid gap-6 xl:grid-cols-2">
+                    <Card>
+                      <CardHeader><CardTitle className="text-lg">Schools</CardTitle><CardDescription>Schools under this organization.</CardDescription></CardHeader>
+                      <CardContent className="space-y-3">{schools.length === 0 ? <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">No schools found.</div> : schools.map((school) => <div key={school.id} className="flex items-center justify-between rounded-md border p-3"><div><div className="font-medium">{school.name}</div><div className="text-xs text-muted-foreground">{school.school_code} / {school.currency ?? "currency"} / {school.timezone ?? "timezone"}</div></div><div className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">{school.status}</div></div>)}</CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader><CardTitle className="text-lg">School Admins</CardTitle><CardDescription>Admin users assigned through memberships and RBAC.</CardDescription></CardHeader>
+                      <CardContent className="space-y-3">{admins.length === 0 ? <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">No school admins assigned yet.</div> : admins.map((admin) => <div key={admin.id} className="rounded-md border p-3"><div className="flex items-center justify-between gap-3"><div><div className="font-medium">{admin.name}</div><div className="text-xs text-muted-foreground">{admin.email}</div></div><div className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{admin.school}</div></div><div className="mt-2 text-xs text-muted-foreground">{admin.roles.join(", ")}</div></div>)}</CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         )}

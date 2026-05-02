@@ -12,6 +12,7 @@ export function LoginPage() {
   const [fullName, setFullName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [tenantCode, setTenantCode] = React.useState("");
   const [message, setMessage] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -21,9 +22,16 @@ export function LoginPage() {
     setMessage(null);
 
     try {
+      const normalizedTenantCode = tenantCode.trim().toUpperCase();
+      if (normalizedTenantCode) {
+        window.localStorage.setItem("preferredTenantCode", normalizedTenantCode);
+      } else {
+        window.localStorage.removeItem("preferredTenantCode");
+      }
+
       if (mode === "signup") {
         await signUp(email, password, fullName);
-        setMessage("Account created. Check your email if confirmation is enabled, then sign in.");
+        setMessage("Account created. For testing, use platform-created admins when you need confirmed login without email.");
         setMode("signin");
       } else {
         await signIn(email, password);
@@ -70,7 +78,7 @@ export function LoginPage() {
             </div>
             <CardTitle className="text-2xl">{mode === "signin" ? "Sign in" : "Create account"}</CardTitle>
             <CardDescription>
-              {mode === "signin" ? "Access is controlled by Supabase memberships." : "Create a profile. Platform access is assigned separately."}
+              {mode === "signin" ? "Use your email, password, and optional org/school code to enter the right tenant." : "Create a profile. Platform access is assigned separately."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -84,6 +92,11 @@ export function LoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tenantCode">Org or school code</Label>
+                <Input id="tenantCode" value={tenantCode} onChange={(event) => setTenantCode(event.target.value)} placeholder="ALBURHAN or AIS" />
+                <p className="text-xs text-muted-foreground">Optional for one-school users. Required later when one user belongs to multiple tenants.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
