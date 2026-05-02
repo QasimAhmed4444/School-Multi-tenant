@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { useRole } from "./RoleContext";
+import { useAuth } from "@/domains/auth/AuthProvider";
+import { useTenant } from "@/domains/tenant/TenantProvider";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -21,7 +22,9 @@ import {
   Search,
   Moon,
   Menu,
-  ChevronDown
+  ChevronDown,
+  LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -33,46 +36,33 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["Principal", "Admin"] },
-  { href: "/teacher-dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["Teacher"] },
-  { href: "/student-dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["Student"] },
-  { href: "/parent-dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["Parent"] },
-  
-  { href: "/students", label: "Students", icon: Users, roles: ["Principal", "Admin", "Teacher", "Accountant"] },
-  { href: "/teachers", label: "Teachers", icon: GraduationCap, roles: ["Principal", "Admin"] },
-  { href: "/attendance", label: "Attendance", icon: ClipboardCheck, roles: ["Principal", "Admin", "Teacher"] },
-  { href: "/fees", label: "Fees & Finance", icon: Wallet, roles: ["Principal", "Admin", "Accountant"] },
-  { href: "/academics", label: "Academics", icon: BookOpen, roles: ["Principal", "Admin", "Teacher", "Student"] },
-  { href: "/homework", label: "Homework", icon: FileText, roles: ["Principal", "Admin", "Teacher", "Student", "Parent"] },
-  { href: "/exams", label: "Exams & Results", icon: Award, roles: ["Principal", "Admin", "Teacher", "Student", "Parent"] },
-  { href: "/timetable", label: "Timetable", icon: Calendar, roles: ["Principal", "Admin", "Teacher", "Student", "Parent"] },
-  { href: "/parents", label: "Parents", icon: Heart, roles: ["Principal", "Admin", "Teacher"] },
-  { href: "/transport", label: "Transport", icon: Bus, roles: ["Principal", "Admin", "Transport Manager", "Parent"] },
-  { href: "/complaints", label: "Complaints", icon: MessageSquare, roles: ["Principal", "Admin", "Parent", "Student"] },
-  { href: "/reports", label: "Reports", icon: BarChart2, roles: ["Principal", "Admin"] },
-  { href: "/settings", label: "Settings", icon: Settings, roles: ["Principal", "Admin"] },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin", label: "Admin Ops", icon: ShieldCheck },
+  { href: "/students", label: "Students", icon: Users },
+  { href: "/teachers", label: "Teachers", icon: GraduationCap },
+  { href: "/attendance", label: "Attendance", icon: ClipboardCheck },
+  { href: "/fees", label: "Fees & Finance", icon: Wallet },
+  { href: "/academics", label: "Academics", icon: BookOpen },
+  { href: "/homework", label: "Homework", icon: FileText },
+  { href: "/exams", label: "Exams & Results", icon: Award },
+  { href: "/timetable", label: "Timetable", icon: Calendar },
+  { href: "/parents", label: "Parents", icon: Heart },
+  { href: "/transport", label: "Transport", icon: Bus },
+  { href: "/complaints", label: "Complaints", icon: MessageSquare },
+  { href: "/reports", label: "Reports", icon: BarChart2 },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [location, setLocation] = useLocation();
-  const { role, setRole } = useRole();
+  const [location] = useLocation();
+  const { profile, signOut } = useAuth();
+  const { memberships, selectedMembership, selectMembership } = useTenant();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
-
-  const availableNavItems = navItems.filter((item) => item.roles.includes(role));
-
-  const roleNameMap: Record<string, string> = {
-    Principal: "Ahmad Al-Faisal",
-    Admin: "Khalid Admin",
-    Teacher: "Mohammad Teacher",
-    Student: "Omar Student",
-    Parent: "Faisal Parent",
-    Accountant: "Saad Accountant",
-    "Transport Manager": "Yousef Manager"
-  };
+  const schoolName = selectedMembership?.school?.name ?? selectedMembership?.organization?.name ?? "School Workspace";
+  const orgName = selectedMembership?.organization?.name ?? "Organization";
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-sans text-foreground">
-      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -80,7 +70,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:static lg:translate-x-0",
@@ -90,12 +79,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         <div className="flex h-16 shrink-0 items-center px-6 bg-sidebar">
           <div className="flex items-center gap-2">
             <Moon className="h-6 w-6 text-sidebar-primary" />
-            <span className="text-lg font-bold text-sidebar-foreground">Al-Manar School</span>
+            <span className="text-lg font-bold text-sidebar-foreground">{schoolName}</span>
           </div>
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto h-[calc(100vh-4rem)]">
-          {availableNavItems.map((item) => {
+          {navItems.map((item) => {
             const isActive = location === item.href;
             return (
               <Link key={item.label + item.href} href={item.href} className="block">
@@ -125,9 +114,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         </nav>
       </aside>
 
-      {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header */}
         <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 lg:px-8">
           <div className="flex items-center gap-4">
             <Button
@@ -151,12 +138,22 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
           <div className="flex items-center gap-3 lg:gap-6">
             <div className="hidden sm:flex items-center text-sm font-medium text-muted-foreground border-r pr-4">
-              1447 هـ / 2026 م
+              {orgName}
             </div>
             
-            <Button variant="ghost" size="sm" className="hidden sm:flex font-medium">
-              EN | عربي
-            </Button>
+            {memberships.length > 1 && (
+              <select
+                className="hidden sm:block h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                value={selectedMembership?.id ?? ""}
+                onChange={(event) => selectMembership(event.target.value)}
+              >
+                {memberships.map((membership) => (
+                  <option key={membership.id} value={membership.id}>
+                    {membership.school?.name ?? membership.organization?.name}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
@@ -167,39 +164,31 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="pl-2 pr-0 gap-2 hover:bg-transparent">
                   <div className="flex flex-col items-end text-sm">
-                    <span className="font-semibold">{roleNameMap[role]}</span>
-                    <span className="text-xs text-muted-foreground">{role}</span>
+                    <span className="font-semibold">{profile?.full_name ?? profile?.email ?? "User"}</span>
+                    <span className="text-xs text-muted-foreground">{schoolName}</span>
                   </div>
                   <Avatar className="h-8 w-8">
                     <AvatarImage src="" />
-                    <AvatarFallback className="bg-primary/10 text-primary">{role[0]}</AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary">{(profile?.full_name ?? profile?.email ?? "U")[0]}</AvatarFallback>
                   </Avatar>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                {["Principal", "Admin", "Teacher", "Student", "Parent", "Accountant", "Transport Manager"].map((r) => (
-                  <DropdownMenuItem
-                    key={r}
-                    onClick={() => {
-                      setRole(r as any);
-                      if (r === "Teacher") setLocation("/teacher-dashboard");
-                      else if (r === "Student") setLocation("/student-dashboard");
-                      else if (r === "Parent") setLocation("/parent-dashboard");
-                      else setLocation("/");
-                    }}
-                    className={cn("justify-between", role === r && "bg-accent/10")}
-                  >
-                    {r}
-                    {role === r && <div className="h-2 w-2 rounded-full bg-primary" />}
+                {memberships.length > 1 && memberships.map((membership) => (
+                  <DropdownMenuItem key={membership.id} onClick={() => selectMembership(membership.id)}>
+                    {membership.school?.name ?? membership.organization?.name}
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuItem onClick={signOut} className="text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </header>
 
-        {/* Page Content */}
         <main className="flex-1 overflow-y-auto bg-background p-4 lg:p-8">
           <div className="mx-auto max-w-7xl">
             {children}

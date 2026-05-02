@@ -2,8 +2,9 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { RoleProvider } from "@/components/RoleContext";
 import { Layout } from "@/components/Layout";
+import { AuthProvider, useAuth } from "@/domains/auth/AuthProvider";
+import { TenantProvider, useTenant } from "@/domains/tenant/TenantProvider";
 import { PrincipalDashboard } from "@/pages/PrincipalDashboard";
 import { AdminDashboard } from "@/pages/AdminDashboard";
 import { TeacherDashboard } from "@/pages/TeacherDashboard";
@@ -22,11 +23,37 @@ import { TransportPage } from "@/pages/TransportPage";
 import { ComplaintsPage } from "@/pages/ComplaintsPage";
 import { ReportsPage } from "@/pages/ReportsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { LoginPage } from "@/pages/LoginPage";
+import { PlatformDashboard } from "@/pages/PlatformDashboard";
+import { TenantAccessPage } from "@/pages/TenantAccessPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
 function Router() {
+  const { loading: authLoading, user } = useAuth();
+  const { loading: tenantLoading, isPlatformAdmin, selectedMembership } = useTenant();
+
+  if (authLoading || tenantLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+        Loading secure workspace...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  if (isPlatformAdmin) {
+    return <PlatformDashboard />;
+  }
+
+  if (!selectedMembership) {
+    return <TenantAccessPage />;
+  }
+
   return (
     <Layout>
       <Switch>
@@ -58,12 +85,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <RoleProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </RoleProvider>
+        <AuthProvider>
+          <TenantProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </TenantProvider>
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
