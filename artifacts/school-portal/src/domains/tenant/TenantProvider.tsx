@@ -11,6 +11,7 @@ export type Membership = {
   organization: { id: string; name: string; slug: string; org_code: string } | null;
   school: { id: string; name: string; slug: string; school_code: string } | null;
   campus: { id: string; name: string; slug: string; campus_code: string } | null;
+  membership_roles?: Array<{ role: { key: string; name: string } | null }>;
 };
 
 type TenantContextValue = {
@@ -53,7 +54,8 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
           status,
           organization:organizations(id,name,slug,org_code),
           school:schools(id,name,slug,school_code),
-          campus:campuses(id,name,slug,campus_code)
+          campus:campuses(id,name,slug,campus_code),
+          membership_roles(role:roles!membership_roles_role_id_fkey(key,name))
         `)
         .eq("profile_id", user.id)
         .eq("status", "active")

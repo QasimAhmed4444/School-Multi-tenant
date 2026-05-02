@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   Wallet,
   BookOpen,
+  Layers3,
   FileText,
   Award,
   Calendar,
@@ -36,7 +37,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/", label: "Workspace", icon: LayoutDashboard },
+  { href: "/users", label: "Users & Roles", icon: ShieldCheck },
+  { href: "/academic-setup", label: "Academic Setup", icon: Layers3 },
   { href: "/admin", label: "Admin Ops", icon: ShieldCheck },
   { href: "/students", label: "Students", icon: Users },
   { href: "/teachers", label: "Teachers", icon: GraduationCap },
@@ -60,9 +63,15 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const schoolName = selectedMembership?.school?.name ?? selectedMembership?.organization?.name ?? "School Workspace";
   const orgName = selectedMembership?.organization?.name ?? "Organization";
+  const roleNames =
+    selectedMembership?.membership_roles
+      ?.map((item) => item.role?.name)
+      .filter(Boolean)
+      .join(", ") || "School user";
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-sans text-foreground">
+      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -70,6 +79,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         />
       )}
 
+      {/* Sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:static lg:translate-x-0",
@@ -114,7 +124,9 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         </nav>
       </aside>
 
+      {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Header */}
         <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 lg:px-8">
           <div className="flex items-center gap-4">
             <Button
@@ -130,7 +142,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search students, teachers..."
+                placeholder="Search workspace..."
                 className="h-9 w-64 rounded-md border border-input bg-background pl-9 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
@@ -165,7 +177,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 <Button variant="ghost" className="pl-2 pr-0 gap-2 hover:bg-transparent">
                   <div className="flex flex-col items-end text-sm">
                     <span className="font-semibold">{profile?.full_name ?? profile?.email ?? "User"}</span>
-                    <span className="text-xs text-muted-foreground">{schoolName}</span>
+                    <span className="text-xs text-muted-foreground">{roleNames}</span>
                   </div>
                   <Avatar className="h-8 w-8">
                     <AvatarImage src="" />
@@ -189,6 +201,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           </div>
         </header>
 
+        {/* Page Content */}
         <main className="flex-1 overflow-y-auto bg-background p-4 lg:p-8">
           <div className="mx-auto max-w-7xl">
             {children}

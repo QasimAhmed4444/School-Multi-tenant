@@ -26,6 +26,9 @@ import { SettingsPage } from "@/pages/SettingsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PlatformDashboard } from "@/pages/PlatformDashboard";
 import { TenantAccessPage } from "@/pages/TenantAccessPage";
+import { SchoolWorkspacePage } from "@/pages/SchoolWorkspacePage";
+import { UserManagementPage } from "@/pages/UserManagementPage";
+import { AcademicSetupPage } from "@/pages/AcademicSetupPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -57,8 +60,11 @@ function Router() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={PrincipalDashboard} />
+        <Route path="/" component={SchoolWorkspacePage} />
+        <Route path="/users" component={UserManagementPage} />
+        <Route path="/academic-setup" component={AcademicSetupPage} />
         <Route path="/admin" component={AdminDashboard} />
+        <Route path="/principal-dashboard" component={PrincipalDashboard} />
         <Route path="/teacher-dashboard" component={TeacherDashboard} />
         <Route path="/student-dashboard" component={StudentDashboard} />
         <Route path="/parent-dashboard" component={ParentDashboard} />
@@ -87,10 +93,10 @@ function App() {
       <TooltipProvider>
         <AuthProvider>
           <TenantProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-            <Toaster />
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
           </TenantProvider>
         </AuthProvider>
       </TooltipProvider>
