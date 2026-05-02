@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace @workspace/school-portal",
-    "build": "npm run build --workspace @workspace/school-portal",
+    "build": "npm run build --workspace @workspace/school-portal && node scripts/copy-build-output.mjs",
     "typecheck": "npm run typecheck --workspace @workspace/school-portal"
   },
   "devDependencies": {
