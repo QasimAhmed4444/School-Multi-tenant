@@ -83,7 +83,7 @@ export function PlatformDashboard() {
       supabase.from("schools").select("id,name,school_code,status,currency,timezone").eq("organization_id", organizationId).order("name"),
       supabase
         .from("memberships")
-        .select("id,profile_id,status,profile:profiles(email,full_name),school:schools(name),membership_roles(role:roles(key,name))")
+        .select("id,profile_id,status,profile:profiles!memberships_profile_id_fkey(email,full_name),school:schools!memberships_school_id_fkey(name),membership_roles(role:roles!membership_roles_role_id_fkey(key,name))")
         .eq("organization_id", organizationId)
         .eq("status", "active"),
     ]);
