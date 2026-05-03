@@ -33,6 +33,7 @@ import { TenantAccessPage } from "@/pages/TenantAccessPage";
 import { SchoolWorkspacePage } from "@/pages/SchoolWorkspacePage";
 import { UserManagementPage } from "@/pages/UserManagementPage";
 import { AcademicSetupPage } from "@/pages/AcademicSetupPage";
+import { ModulePendingPage } from "@/pages/ModulePendingPage";
 import { NoAccessPage } from "@/pages/NoAccessPage";
 import { usePermissions } from "@/domains/authz/usePermissions";
 import NotFound from "@/pages/not-found";
@@ -88,6 +89,10 @@ function HomeworkAssignmentRoute() {
   return <GuardedRoute permissions={["homework.read", "homework.manage"]}><HomeworkAssignmentPage /></GuardedRoute>;
 }
 
+function PendingModuleRoute(props: { moduleName: string }) {
+  return <ModulePendingPage moduleName={props.moduleName} />;
+}
+
 function Router() {
   const [location] = useLocation();
   const { loading: authLoading, user } = useAuth();
@@ -126,17 +131,17 @@ function Router() {
         <Route path="/teachers" component={TeachersRoute} />
         <Route path="/operations" component={OperationsRoute} />
         <Route path="/attendance" component={AttendanceRoute} />
-        <Route path="/fees" component={FeesPage} />
-        <Route path="/academics" component={AcademicsPage} />
+        <Route path="/fees">{() => <PendingModuleRoute moduleName="Fees & Payments" />}</Route>
+        <Route path="/academics">{() => <PendingModuleRoute moduleName="Academics" />}</Route>
         <Route path="/homework/:assignmentId" component={HomeworkAssignmentRoute} />
         <Route path="/homework" component={HomeworkRoute} />
-        <Route path="/exams" component={ExamsPage} />
-        <Route path="/timetable" component={TimetablePage} />
-        <Route path="/parents" component={ParentsPage} />
-        <Route path="/transport" component={TransportPage} />
-        <Route path="/complaints" component={ComplaintsPage} />
-        <Route path="/reports" component={ReportsPage} />
-        <Route path="/settings" component={SettingsPage} />
+        <Route path="/exams">{() => <PendingModuleRoute moduleName="Exams & Results" />}</Route>
+        <Route path="/timetable">{() => <PendingModuleRoute moduleName="Timetable" />}</Route>
+        <Route path="/parents">{() => <PendingModuleRoute moduleName="Parent Portal" />}</Route>
+        <Route path="/transport">{() => <PendingModuleRoute moduleName="Transport" />}</Route>
+        <Route path="/complaints">{() => <PendingModuleRoute moduleName="Complaints" />}</Route>
+        <Route path="/reports">{() => <PendingModuleRoute moduleName="Reports" />}</Route>
+        <Route path="/settings">{() => <PendingModuleRoute moduleName="Settings" />}</Route>
         <Route component={NotFound} />
       </Switch>
     </Layout>
