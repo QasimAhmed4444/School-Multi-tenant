@@ -1,6 +1,6 @@
 import React from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CalendarDays, FilePlus2, RefreshCw, Search } from "lucide-react";
+import { CalendarDays, ExternalLink, FilePlus2, RefreshCw, Search } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -397,6 +397,9 @@ export const HomeworkPage: React.FC = () => {
                       <td className="px-4 py-3"><StatusBadge status={assignment.status} /></td>
                       {canManage && (
                         <td className="px-4 py-3 text-right">
+                          <Button size="sm" variant="ghost" asChild>
+                            <a href={`/homework/${assignment.id}`}><ExternalLink className="mr-2 h-4 w-4" />Open</a>
+                          </Button>
                           <Button size="sm" variant="outline" onClick={() => markCompleted(assignment)}>
                             {assignment.status === "completed" ? "Reopen" : "Complete"}
                           </Button>
