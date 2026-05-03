@@ -8,6 +8,7 @@ export type Membership = {
   school_id: string | null;
   campus_id: string | null;
   status: string;
+  metadata?: Record<string, unknown> | null;
   organization: { id: string; name: string; slug: string; org_code: string } | null;
   school: { id: string; name: string; slug: string; school_code: string } | null;
   campus: { id: string; name: string; slug: string; campus_code: string } | null;
@@ -56,6 +57,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
           school_id,
           campus_id,
           status,
+          metadata,
           organization:organizations(id,name,slug,org_code),
           school:schools(id,name,slug,school_code),
           campus:campuses(id,name,slug,campus_code),
