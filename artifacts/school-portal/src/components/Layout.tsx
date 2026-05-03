@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/domains/auth/AuthProvider";
+import { usePermissions } from "@/domains/authz/usePermissions";
 import { useTenant } from "@/domains/tenant/TenantProvider";
 import { cn } from "@/lib/utils";
 import {
@@ -8,17 +9,8 @@ import {
   Users,
   GraduationCap,
   ClipboardCheck,
-  Wallet,
-  BookOpen,
   Layers3,
-  FileText,
-  Award,
-  Calendar,
   Heart,
-  Bus,
-  MessageSquare,
-  BarChart2,
-  Settings,
   Bell,
   Search,
   Moon,
@@ -26,6 +18,7 @@ import {
   ChevronDown,
   LogOut,
   ShieldCheck,
+  FileText,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -37,29 +30,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { href: "/", label: "Workspace", icon: LayoutDashboard },
-  { href: "/users", label: "Users & Roles", icon: ShieldCheck },
-  { href: "/academic-setup", label: "Academic Setup", icon: Layers3 },
-  { href: "/admin", label: "Admin Ops", icon: ShieldCheck },
-  { href: "/students", label: "Students", icon: Users },
-  { href: "/teachers", label: "Teachers", icon: GraduationCap },
-  { href: "/attendance", label: "Attendance", icon: ClipboardCheck },
-  { href: "/fees", label: "Fees & Finance", icon: Wallet },
-  { href: "/academics", label: "Academics", icon: BookOpen },
-  { href: "/homework", label: "Homework", icon: FileText },
-  { href: "/exams", label: "Exams & Results", icon: Award },
-  { href: "/timetable", label: "Timetable", icon: Calendar },
-  { href: "/parents", label: "Parents", icon: Heart },
-  { href: "/transport", label: "Transport", icon: Bus },
-  { href: "/complaints", label: "Complaints", icon: MessageSquare },
-  { href: "/reports", label: "Reports", icon: BarChart2 },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, permissions: [] },
+  { href: "/users", label: "Users & Roles", icon: ShieldCheck, permissions: ["users.invite"] },
+  { href: "/academic-setup", label: "Academic Setup", icon: Layers3, permissions: ["academics.manage"] },
+  { href: "/students", label: "Students", icon: Users, permissions: ["students.read", "students.manage"] },
+  { href: "/guardians", label: "Guardians", icon: Heart, permissions: ["guardians.read", "guardians.manage"] },
+  { href: "/attendance", label: "Attendance", icon: ClipboardCheck, permissions: ["attendance.read", "attendance.manage"] },
+  { href: "/homework", label: "Homework", icon: FileText, permissions: ["homework.read", "homework.manage"] },
+  { href: "/teachers", label: "Teachers", icon: GraduationCap, permissions: ["users.invite"] },
 ];
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [location] = useLocation();
   const { profile, signOut } = useAuth();
   const { memberships, selectedMembership, selectMembership } = useTenant();
+  const { hasAnyPermission } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const schoolName = selectedMembership?.school?.name ?? selectedMembership?.organization?.name ?? "School Workspace";
   const orgName = selectedMembership?.organization?.name ?? "Organization";
@@ -71,15 +56,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-sans text-foreground">
-      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:static lg:translate-x-0",
@@ -94,7 +77,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto h-[calc(100vh-4rem)]">
-          {navItems.map((item) => {
+          {navItems.filter((item) => hasAnyPermission(item.permissions)).map((item) => {
             const isActive = location === item.href;
             return (
               <Link key={item.label + item.href} href={item.href} className="block">
@@ -124,9 +107,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         </nav>
       </aside>
 
-      {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header */}
         <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 lg:px-8">
           <div className="flex items-center gap-4">
             <Button
@@ -137,7 +118,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             >
               <Menu className="h-5 w-5" />
             </Button>
-            
+
             <div className="hidden md:flex items-center relative">
               <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground" />
               <input
@@ -152,7 +133,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <div className="hidden sm:flex items-center text-sm font-medium text-muted-foreground border-r pr-4">
               {orgName}
             </div>
-            
+
             {memberships.length > 1 && (
               <select
                 className="hidden sm:block h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -201,7 +182,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           </div>
         </header>
 
-        {/* Page Content */}
         <main className="flex-1 overflow-y-auto bg-background p-4 lg:p-8">
           <div className="mx-auto max-w-7xl">
             {children}
