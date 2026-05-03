@@ -1,155 +1,324 @@
-import React, { useState } from "react";
-import { Search, Filter, Plus, Eye, Pencil, Trash2 } from "lucide-react";
+import React from "react";
+import { Filter, Plus, RefreshCw, Search, UserRoundPlus } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { usePermissions } from "@/domains/authz/usePermissions";
+import { useTenant } from "@/domains/tenant/TenantProvider";
+import { supabase } from "@/lib/supabase/client";
 
-const students = [
-  { id: "STU-001", nameEn: "Mohammed Al-Ghamdi", nameAr: "محمد الغامدي", class: "Grade 10A", nationalId: "1098765432", phone: "+966 55 123 4567", status: "Active", branch: "Riyadh Main" },
-  { id: "STU-002", nameEn: "Sarah Al-Otaibi", nameAr: "سارة العتيبي", class: "Grade 8B", nationalId: "2109876543", phone: "+966 50 234 5678", status: "Active", branch: "Jeddah Branch" },
-  { id: "STU-003", nameEn: "Omar Al-Zahrani", nameAr: "عمر الزهراني", class: "Grade 11C", nationalId: "1098234567", phone: "+966 56 345 6789", status: "Active", branch: "Riyadh Main" },
-  { id: "STU-004", nameEn: "Noura Al-Subai'i", nameAr: "نورة السبيعي", class: "Grade 7A", nationalId: "2876543210", phone: "+966 54 456 7890", status: "Active", branch: "Dammam Campus" },
-  { id: "STU-005", nameEn: "Abdullah Al-Shammari", nameAr: "عبدالله الشمري", class: "Grade 12A", nationalId: "1087654321", phone: "+966 55 567 8901", status: "Active", branch: "Riyadh Main" },
-  { id: "STU-006", nameEn: "Fatima Al-Zahrani", nameAr: "فاطمة الزهراني", class: "Grade 9B", nationalId: "2098765432", phone: "+966 50 678 9012", status: "Active", branch: "Jeddah Branch" },
-  { id: "STU-007", nameEn: "Khalid Al-Dosari", nameAr: "خالد الدوسري", class: "Grade 10B", nationalId: "1076543210", phone: "+966 56 789 0123", status: "Inactive", branch: "Riyadh Main" },
-  { id: "STU-008", nameEn: "Hessa Al-Qahtani", nameAr: "هيصة القحطاني", class: "Grade 6A", nationalId: "2065432109", phone: "+966 54 890 1234", status: "Active", branch: "Dammam Campus" },
-  { id: "STU-009", nameEn: "Tariq Al-Rashidi", nameAr: "طارق الراشدي", class: "Grade 11A", nationalId: "1054321098", phone: "+966 55 901 2345", status: "Active", branch: "Riyadh Main" },
-  { id: "STU-010", nameEn: "Lana Al-Harbi", nameAr: "لانا الحربي", class: "Grade 8A", nationalId: "2043210987", phone: "+966 50 012 3456", status: "Active", branch: "Jeddah Branch" },
-  { id: "STU-011", nameEn: "Bandar Al-Anzi", nameAr: "بندر العنزي", class: "Grade 9C", nationalId: "1032109876", phone: "+966 56 123 4568", status: "Active", branch: "Riyadh Main" },
-  { id: "STU-012", nameEn: "Reem Al-Mutairi", nameAr: "ريم المطيري", class: "Grade 7C", nationalId: "2021098765", phone: "+966 54 234 5679", status: "Active", branch: "Dammam Campus" },
-  { id: "STU-013", nameEn: "Nasser Al-Shehri", nameAr: "ناصر الشهري", class: "Grade 12B", nationalId: "1010987654", phone: "+966 55 345 6780", status: "Inactive", branch: "Riyadh Main" },
-  { id: "STU-014", nameEn: "Mona Al-Maliki", nameAr: "منى المالكي", class: "Grade 6B", nationalId: "2009876543", phone: "+966 50 456 7891", status: "Active", branch: "Jeddah Branch" },
-  { id: "STU-015", nameEn: "Yousef Al-Ghamdi", nameAr: "يوسف الغامدي", class: "Grade 10C", nationalId: "1098761234", phone: "+966 56 567 8902", status: "Active", branch: "Riyadh Main" },
-];
+type GradeLevel = { id: string; name: string; code: string };
+type Section = { id: string; name: string; code: string; grade_level_id: string; grade_level?: GradeLevel | null };
+type StudentRow = {
+  id: string;
+  admission_no: string;
+  full_name: string;
+  date_of_birth: string | null;
+  gender: string | null;
+  enrollment_status: string;
+  grade_level?: GradeLevel | null;
+  class_section?: { id: string; name: string; code: string } | null;
+  student_guardians?: Array<{ guardian?: { full_name: string; email: string | null; phone: string | null } | null }>;
+};
 
-const classes = ["All Classes", "Grade 6A", "Grade 6B", "Grade 7A", "Grade 7C", "Grade 8A", "Grade 8B", "Grade 9B", "Grade 9C", "Grade 10A", "Grade 10B", "Grade 10C", "Grade 11A", "Grade 11C", "Grade 12A", "Grade 12B"];
-const branches = ["All Branches", "Riyadh Main", "Jeddah Branch", "Dammam Campus"];
+const initialForm = {
+  admissionNo: "",
+  fullName: "",
+  dateOfBirth: "",
+  gender: "unspecified",
+  gradeLevelId: "",
+  sectionId: "",
+  guardianName: "",
+  guardianEmail: "",
+  guardianPhone: "",
+  relationship: "guardian",
+};
 
 export const StudentsPage: React.FC = () => {
-  const [search, setSearch] = useState("");
-  const [selectedClass, setSelectedClass] = useState("All Classes");
-  const [selectedBranch, setSelectedBranch] = useState("All Branches");
+  const { selectedMembership } = useTenant();
+  const { hasPermission, roleKeys } = usePermissions();
+  const [students, setStudents] = React.useState<StudentRow[]>([]);
+  const [grades, setGrades] = React.useState<GradeLevel[]>([]);
+  const [sections, setSections] = React.useState<Section[]>([]);
+  const [form, setForm] = React.useState(initialForm);
+  const [search, setSearch] = React.useState("");
+  const [sectionFilter, setSectionFilter] = React.useState("all");
+  const [loading, setLoading] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [success, setSuccess] = React.useState<string | null>(null);
+  const canManage = hasPermission("students.manage") && hasPermission("guardians.manage");
+  const isTeacherOnly = roleKeys.includes("teacher") && !roleKeys.some((role) => ["school_admin", "principal", "school_owner", "organization_owner"].includes(role));
 
-  const filtered = students.filter((s) => {
-    const matchSearch = s.nameEn.toLowerCase().includes(search.toLowerCase()) ||
-      s.nameAr.includes(search) ||
-      s.id.toLowerCase().includes(search.toLowerCase()) ||
-      s.nationalId.includes(search);
-    const matchClass = selectedClass === "All Classes" || s.class === selectedClass;
-    const matchBranch = selectedBranch === "All Branches" || s.branch === selectedBranch;
-    return matchSearch && matchClass && matchBranch;
+  const tenantScope = React.useMemo(() => {
+    if (!selectedMembership?.organization_id || !selectedMembership.school_id) return null;
+    return { organization_id: selectedMembership.organization_id, school_id: selectedMembership.school_id };
+  }, [selectedMembership]);
+
+  const loadStudents = React.useCallback(async () => {
+    if (!tenantScope) return;
+    setLoading(true);
+    setError(null);
+
+    const assignedSectionIds = isTeacherOnly && selectedMembership?.id
+      ? ((await supabase
+          .from("teacher_assignments")
+          .select("class_section_id")
+          .eq("organization_id", tenantScope.organization_id)
+          .eq("school_id", tenantScope.school_id)
+          .eq("teacher_membership_id", selectedMembership.id)
+          .eq("status", "active")).data ?? [])
+          .map((assignment) => assignment.class_section_id)
+          .filter(Boolean)
+      : [];
+
+    let studentsQuery = supabase
+      .from("students")
+      .select("id,admission_no,full_name,date_of_birth,gender,enrollment_status,grade_level:grade_levels(id,name,code),class_section:class_sections(id,name,code),student_guardians(guardian:guardians(full_name,email,phone))")
+      .eq("organization_id", tenantScope.organization_id)
+      .eq("school_id", tenantScope.school_id)
+      .order("created_at", { ascending: false });
+
+    let sectionsQuery = supabase
+      .from("class_sections")
+      .select("id,name,code,grade_level_id,grade_level:grade_levels(id,name,code)")
+      .eq("organization_id", tenantScope.organization_id)
+      .eq("school_id", tenantScope.school_id)
+      .eq("status", "active")
+      .order("name", { ascending: true });
+
+    if (isTeacherOnly) {
+      if (assignedSectionIds.length === 0) {
+        setStudents([]);
+        setSections([]);
+        setLoading(false);
+        return;
+      }
+      studentsQuery = studentsQuery.in("class_section_id", assignedSectionIds);
+      sectionsQuery = sectionsQuery.in("id", assignedSectionIds);
+    }
+
+    const [studentsResult, gradesResult, sectionsResult] = await Promise.all([
+      studentsQuery,
+      supabase
+        .from("grade_levels")
+        .select("id,name,code")
+        .eq("organization_id", tenantScope.organization_id)
+        .eq("school_id", tenantScope.school_id)
+        .eq("status", "active")
+        .order("sort_order", { ascending: true }),
+      sectionsQuery,
+    ]);
+
+    const firstError = studentsResult.error ?? gradesResult.error ?? sectionsResult.error;
+    if (firstError) {
+      setError(firstError.message);
+      setStudents([]);
+    } else {
+      const nextGrades = (gradesResult.data ?? []) as GradeLevel[];
+      const nextSections = (sectionsResult.data ?? []) as unknown as Section[];
+      setStudents((studentsResult.data ?? []) as unknown as StudentRow[]);
+      setGrades(nextGrades);
+      setSections(nextSections);
+      setForm((current) => ({
+        ...current,
+        gradeLevelId: current.gradeLevelId || nextGrades[0]?.id || "",
+        sectionId: current.sectionId || nextSections[0]?.id || "",
+      }));
+    }
+    setLoading(false);
+  }, [isTeacherOnly, selectedMembership?.id, tenantScope]);
+
+  React.useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
+
+  const createStudent = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!tenantScope || !canManage) return;
+
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const { data: guardian, error: guardianError } = await supabase
+        .from("guardians")
+        .upsert(
+          {
+            organization_id: tenantScope.organization_id,
+            school_id: tenantScope.school_id,
+            full_name: form.guardianName.trim(),
+            email: form.guardianEmail.trim().toLowerCase() || null,
+            phone: form.guardianPhone.trim() || null,
+            relationship_label: form.relationship,
+            status: "active",
+          },
+          { onConflict: "school_id,email" },
+        )
+        .select("id")
+        .single();
+      if (guardianError) throw guardianError;
+
+      const section = sections.find((item) => item.id === form.sectionId);
+      const { data: student, error: studentError } = await supabase
+        .from("students")
+        .insert({
+          organization_id: tenantScope.organization_id,
+          school_id: tenantScope.school_id,
+          admission_no: form.admissionNo.trim().toUpperCase(),
+          full_name: form.fullName.trim(),
+          date_of_birth: form.dateOfBirth || null,
+          gender: form.gender,
+          grade_level_id: form.gradeLevelId || section?.grade_level_id || null,
+          class_section_id: form.sectionId || null,
+          enrollment_status: "active",
+        })
+        .select("id")
+        .single();
+      if (studentError) throw studentError;
+
+      const { error: linkError } = await supabase.from("student_guardians").insert({
+        organization_id: tenantScope.organization_id,
+        school_id: tenantScope.school_id,
+        student_id: student.id,
+        guardian_id: guardian.id,
+        relationship: form.relationship,
+        is_primary: true,
+        can_pickup: true,
+        receives_communications: true,
+      });
+      if (linkError) throw linkError;
+
+      setSuccess(`${form.fullName.trim()} created and linked to guardian.`);
+      setForm({ ...initialForm, gradeLevelId: grades[0]?.id || "", sectionId: sections[0]?.id || "" });
+      await loadStudents();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to create student");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const filtered = students.filter((student) => {
+    const guardian = student.student_guardians?.[0]?.guardian;
+    const text = `${student.admission_no} ${student.full_name} ${guardian?.full_name ?? ""} ${guardian?.email ?? ""}`.toLowerCase();
+    const matchesSearch = text.includes(search.toLowerCase());
+    const matchesSection = sectionFilter === "all" || student.class_section?.id === sectionFilter;
+    return matchesSearch && matchesSection;
   });
 
   return (
     <div>
-      <PageHeader
-        title="Students Management"
-        description={`${students.length} students enrolled across all branches`}
-        actionLabel="Add Student"
-        onAction={() => {}}
-      />
+      <PageHeader title="Students" description="Real tenant-scoped student records with guardian links." />
 
-      <Card>
-        <CardContent className="p-0">
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3 p-4 border-b">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <input
-                data-testid="input-student-search"
-                type="search"
-                placeholder="Search by name, ID, National ID..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                {classes.map((c) => <option key={c}>{c}</option>)}
-              </select>
-              <select
-                value={selectedBranch}
-                onChange={(e) => setSelectedBranch(e.target.value)}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                {branches.map((b) => <option key={b}>{b}</option>)}
-              </select>
-            </div>
-          </div>
+      {error && <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+      {success && <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/30">
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">ID</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Name (EN / AR)</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Class</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">National ID / Iqama</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Phone</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Branch</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => (
-                  <tr key={s.id} data-testid={`row-student-${s.id}`} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{s.id}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
-                          {s.nameEn.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                        </div>
-                        <div>
-                          <div className="font-medium">{s.nameEn}</div>
-                          <div className="text-muted-foreground text-xs" dir="rtl">{s.nameAr}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{s.class}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{s.nationalId}</td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">{s.phone}</td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">{s.branch}</td>
-                    <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+        {canManage && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><UserRoundPlus className="h-5 w-5 text-primary" />Add Student</CardTitle>
+              <CardDescription>Create the student and first guardian in one clean flow.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={createStudent} className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field id="admission" label="Admission no." value={form.admissionNo} onChange={(value) => setForm({ ...form, admissionNo: value })} placeholder="STU-001" />
+                  <Field id="student-name" label="Student name" value={form.fullName} onChange={(value) => setForm({ ...form, fullName: value })} placeholder="Student full name" />
+                  <Field id="dob" label="Date of birth" type="date" value={form.dateOfBirth} onChange={(value) => setForm({ ...form, dateOfBirth: value })} />
+                  <SelectField id="gender" label="Gender" value={form.gender} onChange={(value) => setForm({ ...form, gender: value })} options={[["unspecified", "Unspecified"], ["female", "Female"], ["male", "Male"], ["other", "Other"]]} />
+                  <SelectField id="grade" label="Grade" value={form.gradeLevelId} onChange={(value) => setForm({ ...form, gradeLevelId: value })} options={grades.map((grade) => [grade.id, grade.name])} />
+                  <SelectField id="section" label="Section" value={form.sectionId} onChange={(value) => setForm({ ...form, sectionId: value })} options={sections.filter((section) => !form.gradeLevelId || section.grade_level_id === form.gradeLevelId).map((section) => [section.id, `${section.grade_level?.name ?? "Grade"} - ${section.name}`])} />
+                </div>
+                <div className="border-t pt-4">
+                  <div className="mb-3 text-sm font-semibold">Primary guardian</div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field id="guardian-name" label="Guardian name" value={form.guardianName} onChange={(value) => setForm({ ...form, guardianName: value })} placeholder="Parent or guardian" />
+                    <Field id="relationship" label="Relationship" value={form.relationship} onChange={(value) => setForm({ ...form, relationship: value })} placeholder="father, mother, guardian" />
+                    <Field id="guardian-email" label="Guardian email" type="email" value={form.guardianEmail} onChange={(value) => setForm({ ...form, guardianEmail: value })} placeholder="parent@email.com" />
+                    <Field id="guardian-phone" label="Guardian phone" value={form.guardianPhone} onChange={(value) => setForm({ ...form, guardianPhone: value })} placeholder="+966..." />
+                  </div>
+                </div>
+                <Button type="submit" disabled={saving || grades.length === 0 || sections.length === 0}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {saving ? "Creating..." : "Create student"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
-          {/* Footer */}
-          <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-muted-foreground">
-            <span>Showing {filtered.length} of {students.length} students</span>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" disabled>Previous</Button>
-              <Button variant="outline" size="sm" className="bg-primary text-primary-foreground">1</Button>
-              <Button variant="outline" size="sm">2</Button>
-              <Button variant="outline" size="sm">Next</Button>
+        <Card className={!canManage ? "xl:col-span-2" : ""}>
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Student Directory</CardTitle>
+              <CardDescription>{filtered.length} of {students.length} students in this school.</CardDescription>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+            <Button variant="outline" onClick={loadStudents} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="flex flex-col gap-3 border-y p-4 sm:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-4 text-sm" placeholder="Search student or guardian..." />
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <select value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="all">All sections</option>
+                  {sections.map((section) => <option key={section.id} value={section.id}>{section.grade_level?.name ?? "Grade"} - {section.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b bg-muted/30"><th className="px-4 py-3 text-left font-medium text-muted-foreground">Student</th><th className="px-4 py-3 text-left font-medium text-muted-foreground">Class</th><th className="px-4 py-3 text-left font-medium text-muted-foreground">Guardian</th><th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th></tr></thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No students found.</td></tr>
+                  ) : filtered.map((student) => {
+                    const guardian = student.student_guardians?.[0]?.guardian;
+                    return (
+                      <tr key={student.id} className="border-b last:border-0">
+                        <td className="px-4 py-3"><div className="font-medium">{student.full_name}</div><div className="font-mono text-xs text-muted-foreground">{student.admission_no}</div></td>
+                        <td className="px-4 py-3 text-muted-foreground">{student.grade_level?.name ?? "-"} / {student.class_section?.name ?? "-"}</td>
+                        <td className="px-4 py-3"><div>{guardian?.full_name ?? "No guardian"}</div><div className="text-xs text-muted-foreground">{guardian?.email ?? guardian?.phone ?? ""}</div></td>
+                        <td className="px-4 py-3"><StatusBadge status={student.enrollment_status} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
+
+function Field(props: { id: string; label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={props.id}>{props.label}</Label>
+      <Input id={props.id} type={props.type ?? "text"} value={props.value} onChange={(event) => props.onChange(event.target.value)} placeholder={props.placeholder} required={props.type !== "date"} />
+    </div>
+  );
+}
+
+function SelectField(props: { id: string; label: string; value: string; onChange: (value: string) => void; options: string[][] }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={props.id}>{props.label}</Label>
+      <select id={props.id} value={props.value} onChange={(event) => props.onChange(event.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
+        <option value="">Select</option>
+        {props.options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+      </select>
+    </div>
+  );
+}
