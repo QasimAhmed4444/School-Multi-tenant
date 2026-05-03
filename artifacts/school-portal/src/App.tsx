@@ -43,7 +43,11 @@ const queryClient = new QueryClient();
 function HomeRoute() {
   const { roleKeys } = usePermissions();
   const isTeacherOnly = roleKeys.includes("teacher") && !roleKeys.some((role) => ["school_admin", "principal", "school_owner", "organization_owner"].includes(role));
+  const isStudentOnly = roleKeys.includes("student") && roleKeys.length === 1;
+  const isParentOnly = roleKeys.includes("parent") && roleKeys.length === 1;
   if (isTeacherOnly) return <TeacherDashboard />;
+  if (isStudentOnly) return <StudentDashboard />;
+  if (isParentOnly) return <ParentDashboard />;
   return <SchoolWorkspacePage />;
 }
 
