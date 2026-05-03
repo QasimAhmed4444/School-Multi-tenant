@@ -15,7 +15,9 @@ import { TeachersPage } from "@/pages/TeachersPage";
 import { AttendancePage } from "@/pages/AttendancePage";
 import { FeesPage } from "@/pages/FeesPage";
 import { AcademicsPage } from "@/pages/AcademicsPage";
+import { HomeworkAssignmentPage } from "@/pages/HomeworkAssignmentPage";
 import { HomeworkPage } from "@/pages/HomeworkPage";
+import { OperationsPage } from "@/pages/OperationsPage";
 import { ExamsPage } from "@/pages/ExamsPage";
 import { TimetablePage } from "@/pages/TimetablePage";
 import { ParentsPage } from "@/pages/ParentsPage";
@@ -31,6 +33,7 @@ import { TenantAccessPage } from "@/pages/TenantAccessPage";
 import { SchoolWorkspacePage } from "@/pages/SchoolWorkspacePage";
 import { UserManagementPage } from "@/pages/UserManagementPage";
 import { AcademicSetupPage } from "@/pages/AcademicSetupPage";
+import { NoAccessPage } from "@/pages/NoAccessPage";
 import { usePermissions } from "@/domains/authz/usePermissions";
 import NotFound from "@/pages/not-found";
 
@@ -41,6 +44,48 @@ function HomeRoute() {
   const isTeacherOnly = roleKeys.includes("teacher") && !roleKeys.some((role) => ["school_admin", "principal", "school_owner", "organization_owner"].includes(role));
   if (isTeacherOnly) return <TeacherDashboard />;
   return <SchoolWorkspacePage />;
+}
+
+function GuardedRoute(props: { permissions: string[]; children: React.ReactNode }) {
+  const { hasAnyPermission } = usePermissions();
+  if (!hasAnyPermission(props.permissions)) return <NoAccessPage />;
+  return <>{props.children}</>;
+}
+
+function UsersRoute() {
+  return <GuardedRoute permissions={["users.invite"]}><UserManagementPage /></GuardedRoute>;
+}
+
+function AcademicSetupRoute() {
+  return <GuardedRoute permissions={["academics.manage"]}><AcademicSetupPage /></GuardedRoute>;
+}
+
+function StudentsRoute() {
+  return <GuardedRoute permissions={["students.read", "students.manage"]}><StudentsPage /></GuardedRoute>;
+}
+
+function GuardiansRoute() {
+  return <GuardedRoute permissions={["guardians.read", "guardians.manage"]}><GuardiansPage /></GuardedRoute>;
+}
+
+function TeachersRoute() {
+  return <GuardedRoute permissions={["users.invite"]}><TeachersPage /></GuardedRoute>;
+}
+
+function AttendanceRoute() {
+  return <GuardedRoute permissions={["attendance.read", "attendance.manage"]}><AttendancePage /></GuardedRoute>;
+}
+
+function OperationsRoute() {
+  return <GuardedRoute permissions={["attendance.read", "homework.read", "homework.manage"]}><OperationsPage /></GuardedRoute>;
+}
+
+function HomeworkRoute() {
+  return <GuardedRoute permissions={["homework.read", "homework.manage"]}><HomeworkPage /></GuardedRoute>;
+}
+
+function HomeworkAssignmentRoute() {
+  return <GuardedRoute permissions={["homework.read", "homework.manage"]}><HomeworkAssignmentPage /></GuardedRoute>;
 }
 
 function Router() {
@@ -69,20 +114,22 @@ function Router() {
     <Layout>
       <Switch>
         <Route path="/" component={HomeRoute} />
-        <Route path="/users" component={UserManagementPage} />
-        <Route path="/academic-setup" component={AcademicSetupPage} />
+        <Route path="/users" component={UsersRoute} />
+        <Route path="/academic-setup" component={AcademicSetupRoute} />
         <Route path="/admin" component={AdminDashboard} />
         <Route path="/principal-dashboard" component={PrincipalDashboard} />
         <Route path="/teacher-dashboard" component={TeacherDashboard} />
         <Route path="/student-dashboard" component={StudentDashboard} />
         <Route path="/parent-dashboard" component={ParentDashboard} />
-        <Route path="/students" component={StudentsPage} />
-        <Route path="/guardians" component={GuardiansPage} />
-        <Route path="/teachers" component={TeachersPage} />
-        <Route path="/attendance" component={AttendancePage} />
+        <Route path="/students" component={StudentsRoute} />
+        <Route path="/guardians" component={GuardiansRoute} />
+        <Route path="/teachers" component={TeachersRoute} />
+        <Route path="/operations" component={OperationsRoute} />
+        <Route path="/attendance" component={AttendanceRoute} />
         <Route path="/fees" component={FeesPage} />
         <Route path="/academics" component={AcademicsPage} />
-        <Route path="/homework" component={HomeworkPage} />
+        <Route path="/homework/:assignmentId" component={HomeworkAssignmentRoute} />
+        <Route path="/homework" component={HomeworkRoute} />
         <Route path="/exams" component={ExamsPage} />
         <Route path="/timetable" component={TimetablePage} />
         <Route path="/parents" component={ParentsPage} />
