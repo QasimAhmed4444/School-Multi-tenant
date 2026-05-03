@@ -19,6 +19,7 @@ import {
   LogOut,
   ShieldCheck,
   FileText,
+  Activity,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -35,6 +36,7 @@ const navItems = [
   { href: "/academic-setup", label: "Academic Setup", icon: Layers3, permissions: ["academics.manage"] },
   { href: "/students", label: "Students", icon: Users, permissions: ["students.read", "students.manage"] },
   { href: "/guardians", label: "Guardians", icon: Heart, permissions: ["guardians.read", "guardians.manage"] },
+  { href: "/operations", label: "Operations", icon: Activity, permissions: ["attendance.read", "homework.read", "homework.manage"] },
   { href: "/attendance", label: "Attendance", icon: ClipboardCheck, permissions: ["attendance.read", "attendance.manage"] },
   { href: "/homework", label: "Homework", icon: FileText, permissions: ["homework.read", "homework.manage"] },
   { href: "/teachers", label: "Teachers", icon: GraduationCap, permissions: ["users.invite"] },
