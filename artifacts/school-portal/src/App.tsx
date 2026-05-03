@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,34 +19,42 @@ import { HomeworkPage } from "@/pages/HomeworkPage";
 import { ExamsPage } from "@/pages/ExamsPage";
 import { TimetablePage } from "@/pages/TimetablePage";
 import { ParentsPage } from "@/pages/ParentsPage";
+import { GuardiansPage } from "@/pages/GuardiansPage";
 import { TransportPage } from "@/pages/TransportPage";
 import { ComplaintsPage } from "@/pages/ComplaintsPage";
 import { ReportsPage } from "@/pages/ReportsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { PlatformLoginPage } from "@/pages/PlatformLoginPage";
 import { PlatformDashboard } from "@/pages/PlatformDashboard";
 import { TenantAccessPage } from "@/pages/TenantAccessPage";
 import { SchoolWorkspacePage } from "@/pages/SchoolWorkspacePage";
 import { UserManagementPage } from "@/pages/UserManagementPage";
 import { AcademicSetupPage } from "@/pages/AcademicSetupPage";
+import { usePermissions } from "@/domains/authz/usePermissions";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
+function HomeRoute() {
+  const { roleKeys } = usePermissions();
+  const isTeacherOnly = roleKeys.includes("teacher") && !roleKeys.some((role) => ["school_admin", "principal", "school_owner", "organization_owner"].includes(role));
+  if (isTeacherOnly) return <TeacherDashboard />;
+  return <SchoolWorkspacePage />;
+}
+
 function Router() {
+  const [location] = useLocation();
   const { loading: authLoading, user } = useAuth();
   const { loading: tenantLoading, isPlatformAdmin, selectedMembership } = useTenant();
+  const isPlatformLoginRoute = location === "/admin/login";
 
   if (authLoading || tenantLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-        Loading secure workspace...
-      </div>
-    );
+    return <div className="min-h-screen bg-background" />;
   }
 
   if (!user) {
-    return <LoginPage />;
+    return isPlatformLoginRoute ? <PlatformLoginPage /> : <LoginPage />;
   }
 
   if (isPlatformAdmin) {
@@ -60,7 +68,7 @@ function Router() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={SchoolWorkspacePage} />
+        <Route path="/" component={HomeRoute} />
         <Route path="/users" component={UserManagementPage} />
         <Route path="/academic-setup" component={AcademicSetupPage} />
         <Route path="/admin" component={AdminDashboard} />
@@ -69,6 +77,7 @@ function Router() {
         <Route path="/student-dashboard" component={StudentDashboard} />
         <Route path="/parent-dashboard" component={ParentDashboard} />
         <Route path="/students" component={StudentsPage} />
+        <Route path="/guardians" component={GuardiansPage} />
         <Route path="/teachers" component={TeachersPage} />
         <Route path="/attendance" component={AttendancePage} />
         <Route path="/fees" component={FeesPage} />
