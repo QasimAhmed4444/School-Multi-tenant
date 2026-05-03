@@ -1,136 +1,205 @@
 import React from "react";
+import { BookOpen, CalendarCheck2, Clock, FileText } from "lucide-react";
+import { KPICard } from "@/components/KPICard";
 import { PageHeader } from "@/components/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
-import { BookOpen, Clock, Award, Bell } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useTenant } from "@/domains/tenant/TenantProvider";
+import { supabase } from "@/lib/supabase/client";
 
-const todayTimetable = [
-  { time: "7:30 – 8:30", subject: "Mathematics", teacher: "Ahmed Al-Maliki", room: "Room 201", status: "Completed" },
-  { time: "8:30 – 9:30", subject: "Arabic Language", teacher: "Noura Al-Ghamdi", room: "Room 105", status: "Current" },
-  { time: "9:30 – 10:30", subject: "Break", teacher: "—", room: "Cafeteria", status: "Break" },
-  { time: "10:30 – 11:30", subject: "English Language", teacher: "Hessa Al-Dosari", room: "Room 108", status: "Upcoming" },
-  { time: "11:30 – 12:30", subject: "Science", teacher: "Fatima Al-Harbi", room: "Lab 2", status: "Upcoming" },
-  { time: "12:30 – 13:30", subject: "Computer Science", teacher: "Lana Al-Mutairi", room: "Lab 1", status: "Upcoming" },
-];
+type AttendanceStatus = "pending" | "present" | "absent" | "late" | "excused";
+type StudentSummary = {
+  id: string;
+  fullName: string;
+  admissionNo: string;
+  className: string;
+  gradeName: string;
+};
+type AttendanceRow = {
+  id: string;
+  attendance_date: string;
+  status: AttendanceStatus;
+  time_in: string | null;
+  notes: string | null;
+};
+type HomeworkRow = {
+  id: string;
+  status: string;
+  submitted_at: string | null;
+  notes: string | null;
+  assignmentTitle: string;
+  dueDate: string;
+  assignmentStatus: string;
+  subjectName: string;
+};
 
-const homework = [
-  { subject: "Mathematics", title: "Algebra Chapter 5 — Exercises 1-20", due: "Tomorrow", status: "Pending" },
-  { subject: "English", title: "Essay: My Future Goals (500 words)", due: "08 Jan 2026", status: "In Progress" },
-  { subject: "Arabic", title: "Poetry Analysis: Al-Mutanabbi", due: "09 Jan 2026", status: "Not Started" },
-];
-
-const recentResults = [
-  { subject: "Mathematics Q1", marks: 88, total: 100, grade: "B+" },
-  { subject: "English Q1", marks: 92, total: 100, grade: "A" },
-  { subject: "Arabic Q1", marks: 76, total: 100, grade: "B" },
-  { subject: "Science Q1", marks: 84, total: 100, grade: "B+" },
-];
-
-const announcements = [
-  { title: "Midterm Exams Start 14 Jan 2026", type: "info" },
-  { title: "Library Book Return Deadline: 10 Jan 2026", type: "warning" },
-  { title: "Science Fair Registration Open", type: "info" },
-];
+const today = () => new Date().toISOString().slice(0, 10);
 
 export const StudentDashboard: React.FC = () => {
+  const { selectedMembership } = useTenant();
+  const studentId = selectedMembership?.metadata?.student_id as string | undefined;
+  const [student, setStudent] = React.useState<StudentSummary | null>(null);
+  const [attendance, setAttendance] = React.useState<AttendanceRow[]>([]);
+  const [homework, setHomework] = React.useState<HomeworkRow[]>([]);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const loadStudentPortal = React.useCallback(async () => {
+    if (!studentId || !selectedMembership?.school_id) return;
+    setError(null);
+
+    const [studentResult, attendanceResult, homeworkResult] = await Promise.all([
+      supabase
+        .from("students")
+        .select("id,full_name,admission_no,class_section:class_sections(name,code),grade_level:grade_levels(name)")
+        .eq("id", studentId)
+        .eq("school_id", selectedMembership.school_id)
+        .maybeSingle(),
+      supabase
+        .from("attendance_records")
+        .select("id,attendance_date,status,time_in,notes")
+        .eq("student_id", studentId)
+        .eq("school_id", selectedMembership.school_id)
+        .order("attendance_date", { ascending: false })
+        .limit(30),
+      supabase
+        .from("homework_submissions")
+        .select("id,status,submitted_at,notes,assignment:homework_assignments(title,due_date,status,subject:subjects(name))")
+        .eq("student_id", studentId)
+        .eq("school_id", selectedMembership.school_id)
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+
+    const firstError = studentResult.error ?? attendanceResult.error ?? homeworkResult.error;
+    if (firstError) {
+      setError(firstError.message);
+      setStudent(null);
+      setAttendance([]);
+      setHomework([]);
+      return;
+    }
+
+    const studentRow = studentResult.data as any;
+    if (!studentRow) {
+      setError("Your login is active, but no student record is linked yet.");
+      return;
+    }
+
+    setStudent({
+      id: studentRow.id,
+      fullName: studentRow.full_name,
+      admissionNo: studentRow.admission_no,
+      className: studentRow.class_section?.name ?? "Class not assigned",
+      gradeName: studentRow.grade_level?.name ?? "Grade not assigned",
+    });
+    setAttendance(((attendanceResult.data ?? []) as any[]).map((row) => ({
+      id: row.id,
+      attendance_date: row.attendance_date,
+      status: row.status,
+      time_in: row.time_in,
+      notes: row.notes,
+    })));
+    setHomework(((homeworkResult.data ?? []) as any[]).map((row) => ({
+      id: row.id,
+      status: row.status,
+      submitted_at: row.submitted_at,
+      notes: row.notes,
+      assignmentTitle: row.assignment?.title ?? "Homework",
+      dueDate: row.assignment?.due_date ?? "-",
+      assignmentStatus: row.assignment?.status ?? "active",
+      subjectName: row.assignment?.subject?.name ?? "General",
+    })));
+  }, [selectedMembership?.school_id, studentId]);
+
+  React.useEffect(() => {
+    loadStudentPortal();
+  }, [loadStudentPortal]);
+
+  React.useEffect(() => {
+    if (!studentId || !selectedMembership?.school_id) return;
+    const channel = supabase
+      .channel(`student-portal-${studentId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "attendance_records", filter: `school_id=eq.${selectedMembership.school_id}` }, () => loadStudentPortal())
+      .on("postgres_changes", { event: "*", schema: "public", table: "homework_submissions", filter: `school_id=eq.${selectedMembership.school_id}` }, () => loadStudentPortal())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadStudentPortal, selectedMembership?.school_id, studentId]);
+
+  const presentCount = attendance.filter((row) => ["present", "late", "excused"].includes(row.status)).length;
+  const markedCount = attendance.filter((row) => row.status !== "pending").length;
+  const attendanceRate = markedCount ? Math.round((presentCount / markedCount) * 100) : 0;
+  const todayAttendance = attendance.find((row) => row.attendance_date === today());
+  const pendingHomework = homework.filter((row) => ["pending", "missing"].includes(row.status)).length;
+  const submittedHomework = homework.filter((row) => ["submitted", "late", "excused"].includes(row.status)).length;
+
   return (
     <div>
-      <PageHeader title="Student Dashboard" description="Welcome, Mohammed Al-Ghamdi — Grade 10A" />
+      <PageHeader
+        title="Student Dashboard"
+        description={student ? `${student.fullName} / ${student.gradeName} / ${student.className}` : "Read-only student workspace."}
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="relative w-24 h-24 mx-auto mb-3">
-              <svg viewBox="0 0 36 36" className="w-24 h-24 -rotate-90">
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="hsl(220 15% 90%)" strokeWidth="3" />
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="hsl(168 65% 38%)" strokeWidth="3"
-                  strokeDasharray={`${94 * 100 / 100} 100`} strokeLinecap="round" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-xl font-bold text-primary">94%</span>
-              </div>
-            </div>
-            <p className="font-semibold">Attendance Rate</p>
-            <p className="text-xs text-muted-foreground mt-1">117 of 125 school days present</p>
-          </CardContent>
-        </Card>
+      {error && <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2"><Bell className="h-4 w-4 text-amber-500" /> Announcements</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {announcements.map((a, i) => (
-              <div key={i} className={`p-2.5 rounded-lg text-sm ${
-                a.type === "info" ? "bg-blue-50 border border-blue-100 text-blue-800" : "bg-amber-50 border border-amber-100 text-amber-800"
-              }`}>
-                {a.title}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2"><Award className="h-4 w-4 text-amber-500" /> Recent Results</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {recentResults.map((r, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <span className="text-sm">{r.subject}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">{r.marks}/{r.total}</span>
-                  <span className="text-sm font-bold text-primary">{r.grade}</span>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <KPICard title="Today" value={todayAttendance?.status ?? "pending"} icon={CalendarCheck2} description={todayAttendance?.time_in ? `time in ${todayAttendance.time_in.slice(0, 5)}` : "attendance status"} colorClass="text-emerald-600" />
+        <KPICard title="Attendance Rate" value={`${attendanceRate}%`} icon={Clock} description={`${markedCount} marked records`} colorClass="text-blue-600" />
+        <KPICard title="Homework Pending" value={pendingHomework} icon={BookOpen} description="requires attention" colorClass="text-amber-600" />
+        <KPICard title="Homework Submitted" value={submittedHomework} icon={FileText} description="submitted/late/excused" colorClass="text-violet-600" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4 text-blue-500" /> Today's Timetable</CardTitle>
+            <CardTitle>Homework</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            {todayTimetable.map((slot, i) => (
-              <div key={i} className={`flex items-center gap-4 px-4 py-3 border-b last:border-0 ${slot.status === "Current" ? "bg-primary/5 border-l-4 border-l-primary" : ""}`}>
-                <div className="text-xs font-medium text-muted-foreground w-24 shrink-0">{slot.time}</div>
-                <div className="flex-1">
-                  <div className={`text-sm font-medium ${slot.status === "Break" ? "text-muted-foreground" : ""}`}>{slot.subject}</div>
-                  {slot.teacher !== "—" && <div className="text-xs text-muted-foreground">{slot.teacher} • {slot.room}</div>}
-                </div>
-                {slot.status !== "Break" && (
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    slot.status === "Completed" ? "bg-emerald-100 text-emerald-700" :
-                    slot.status === "Current" ? "bg-primary text-primary-foreground" :
-                    "bg-gray-100 text-gray-600"
-                  }`}>{slot.status}</span>
-                )}
-              </div>
-            ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Assignment</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Subject</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Due</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {homework.length === 0 ? (
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No homework assigned yet.</td></tr>
+                  ) : homework.map((row) => (
+                    <tr key={row.id} className="border-b last:border-0">
+                      <td className="px-4 py-3 font-medium">{row.assignmentTitle}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{row.subjectName}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{row.dueDate}</td>
+                      <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
+                      <td className="px-4 py-3 text-muted-foreground">{row.notes || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2"><BookOpen className="h-4 w-4 text-indigo-500" /> Pending Homework</CardTitle>
+            <CardTitle>Recent Attendance</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {homework.map((h, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 rounded-lg border">
-                <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                  h.status === "In Progress" ? "bg-amber-400" :
-                  h.status === "Pending" ? "bg-blue-400" :
-                  "bg-gray-300"
-                }`} />
-                <div className="flex-1">
-                  <span className="text-xs font-medium text-primary">{h.subject}</span>
-                  <p className="text-sm font-medium mt-0.5">{h.title}</p>
-                  <p className="text-xs text-muted-foreground">Due: {h.due}</p>
+            {attendance.length === 0 ? (
+              <div className="rounded-md border p-4 text-sm text-muted-foreground">No attendance records yet.</div>
+            ) : attendance.slice(0, 10).map((row) => (
+              <div key={row.id} className="flex items-center justify-between rounded-md border p-3">
+                <div>
+                  <div className="text-sm font-medium">{row.attendance_date}</div>
+                  <div className="text-xs text-muted-foreground">{row.notes || row.time_in?.slice(0, 5) || "No note"}</div>
                 </div>
-                <StatusBadge status={h.status} />
+                <StatusBadge status={row.status} />
               </div>
             ))}
           </CardContent>
